@@ -135,4 +135,74 @@ public final class TerminalBuffer {
     private static void requireNonNegative(int n) {
         if (n < 0) throw new IllegalArgumentException("n must be >= 0, got: " + n);
     }
+
+    public void write(String text) {
+        if (text == null || text.isEmpty()) return;
+
+        Line line = screen[cursorRow];
+        int col = cursorCol;
+
+        for (int i = 0; i < text.length(); i++) {
+            if (col >= width) break;
+            char ch = text.charAt(i);
+            line.cell(col).set(ch, currentAttrs);
+            col++;
+        }
+
+        cursorCol = clamp(col, 0, width - 1);
+    }
+
+    public void fillLine(int row, int codePointOrZero) {
+        if (row < 0 || row >= height) throw new IllegalArgumentException("row out of bounds: " + row);
+        Line line = screen[row];
+        for (int col = 0; col < width; col++) {
+            line.cell(col).set(codePointOrZero, currentAttrs);
+        }
+    }
+
+    public int getCodePointAt(int globalRow, int col) {
+        checkGlobalRow(globalRow);
+        checkCol(col);
+        Line line = getLineByGlobalRow(globalRow);
+        return line.cell(col).codePoint();
+    }
+
+    public TextAttributes getAttributesAt(int globalRow, int col) {
+        checkGlobalRow(globalRow);
+        checkCol(col);
+        Line line = getLineByGlobalRow(globalRow);
+        return line.cell(col).attrs();
+    }
+
+    public String getLineAsString(int globalRow) {
+        checkGlobalRow(globalRow);
+        Line line = getLineByGlobalRow(globalRow);
+        return line.toPlainString();
+    }
+
+    public String getScreenAsString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < height; i++) {
+            sb.append(screen[i].toPlainString());
+            if (i != height - 1) sb.append('\n');
+        }
+        return sb.toString();
+    }
+
+    private Line getLineByGlobalRow(int globalRow) {
+        int screenRow = globalRow - scrollbackSize;
+        return screen[screenRow];
+    }
+
+    private void checkGlobalRow(int globalRow) {
+        if (globalRow < 0 || globalRow >= totalLines()) {
+            throw new IllegalArgumentException("globalRow out of bounds: " + globalRow);
+        }
+    }
+
+    private void checkCol(int col) {
+        if (col < 0 || col >= width) {
+            throw new IllegalArgumentException("col out of bounds: " + col);
+        }
+    }
 }
