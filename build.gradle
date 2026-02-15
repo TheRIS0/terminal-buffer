@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'application'
 }
 
 group = 'org.example'
@@ -23,6 +24,10 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+application {
+    mainClass = 'org.example.terminalbuffer.DemoMain'
 }
 
 tasks.withType(JavaCompile).configureEach {
