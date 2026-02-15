@@ -42,4 +42,15 @@ public final class Line {
         }
         return sb.toString();
     }
+
+    public Line resizedTo(int newWidth) {
+        if (newWidth <= 0) throw new IllegalArgumentException("newWidth must be > 0");
+        Line out = new Line(newWidth);
+        int n = Math.min(this.cells.length, newWidth);
+        for (int i = 0; i < n; i++) {
+            Cell c = this.cells[i];
+            out.cells[i].set(c.codePoint(), c.attrs());
+        }
+        return out;
+    }
 }

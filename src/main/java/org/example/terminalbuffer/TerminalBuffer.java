@@ -3,11 +3,11 @@ package org.example.terminalbuffer;
 import java.util.Objects;
 
 public final class TerminalBuffer {
-    private final int width;
-    private final int height;
+    private int width;
+    private int height;
     private final int scrollbackMax;
 
-    private final Line[] screen;
+    private Line[] screen;
 
     private final Line[] scrollbackStore;
     private int scrollbackStart;
@@ -274,6 +274,49 @@ public final class TerminalBuffer {
         if (col < 0 || col >= width) {
             throw new IllegalArgumentException("col out of bounds: " + col);
         }
+    }
+
+    public void resize(int newWidth, int newHeight) {
+        if (newWidth <= 0) throw new IllegalArgumentException("newWidth must be > 0");
+        if (newHeight <= 0) throw new IllegalArgumentException("newHeight must be > 0");
+
+        if (newWidth == this.width && newHeight == this.height) return;
+
+        // If height shrinks, move removed top lines to scrollback.
+        if (newHeight < this.height) {
+            int removed = this.height - newHeight;
+            for (int i = 0; i < removed; i++) {
+                pushToScrollback(this.screen[i].deepCopy());
+            }
+
+            Line[] newScreen = new Line[newHeight];
+            for (int i = 0; i < newHeight; i++) {
+                newScreen[i] = this.screen[i + removed].resizedTo(newWidth);
+            }
+            this.screen = newScreen;
+        } else if (newHeight > this.height) {
+            Line[] newScreen = new Line[newHeight];
+            for (int i = 0; i < this.height; i++) {
+                newScreen[i] = this.screen[i].resizedTo(newWidth);
+            }
+            for (int i = this.height; i < newHeight; i++) {
+                newScreen[i] = new Line(newWidth);
+            }
+            this.screen = newScreen;
+        } else {
+            // same height, only width change
+            Line[] newScreen = new Line[this.height];
+            for (int i = 0; i < this.height; i++) {
+                newScreen[i] = this.screen[i].resizedTo(newWidth);
+            }
+            this.screen = newScreen;
+        }
+
+        this.width = newWidth;
+        this.height = newHeight;
+
+        // Clamp cursor
+        setCursor(cursorCol, cursorRow);
     }
 
     public void insertEmptyLineAtBottom() {
