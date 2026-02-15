@@ -144,32 +144,93 @@ public final class TerminalBuffer {
         if (n < 0) throw new IllegalArgumentException("n must be >= 0, got: " + n);
     }
 
+    private static int cellWidth(int codePoint) {
+        // Simple heuristic: treat emoji and CJK as width 2.
+        // This is not perfect, but acceptable for the bonus.
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        if (block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.HIRAGANA
+                || block == Character.UnicodeBlock.KATAKANA
+                || block == Character.UnicodeBlock.HANGUL_SYLLABLES
+                || block == Character.UnicodeBlock.HANGUL_JAMO
+                || block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO) {
+            return 2;
+        }
+
+        // Emoji ranges (rough)
+        if ((codePoint >= 0x1F300 && codePoint <= 0x1FAFF) || (codePoint >= 0x2600 && codePoint <= 0x26FF)) {
+            return 2;
+        }
+
+        return 1;
+    }
+
     public void write(String text) {
         if (text == null || text.isEmpty()) return;
 
-        Line line = screen[cursorRow];
-        int col = cursorCol;
+        int i = 0;
+        while (i < text.length()) {
+            int cp = text.codePointAt(i);
+            i += Character.charCount(cp);
 
-        for (int i = 0; i < text.length(); i++) {
-            if (col >= width) break;
-            char ch = text.charAt(i);
-            line.cell(col).set(ch, currentAttrs);
-            col++;
+            int w = cellWidth(cp);
+
+            if (w == 1) {
+                if (cursorCol >= width) break;
+                Line line = screen[cursorRow];
+                line.cell(cursorCol).set(cp, currentAttrs);
+                cursorCol = clamp(cursorCol + 1, 0, width - 1);
+            } else {
+                // need 2 cells
+                if (cursorCol == width - 1) {
+                    // no space: move to next line start (like wrap)
+                    cursorCol = 0;
+                    cursorRow++;
+                    if (cursorRow >= height) {
+                        scrollUpOneLine();
+                        cursorRow = height - 1;
+                    }
+                }
+                if (cursorCol >= width - 1) break;
+
+                Line line = screen[cursorRow];
+                line.cell(cursorCol).set(cp, currentAttrs);
+                line.cell(cursorCol + 1).set(Cell.CONTINUATION, currentAttrs);
+
+                cursorCol += 2;
+                if (cursorCol >= width) {
+                    cursorCol = 0;
+                    cursorRow++;
+                    if (cursorRow >= height) {
+                        scrollUpOneLine();
+                        cursorRow = height - 1;
+                    }
+                }
+            }
         }
-
-        cursorCol = clamp(col, 0, width - 1);
     }
 
     public void insert(String text) {
         if (text == null || text.isEmpty()) return;
 
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            insertOneChar(ch, currentAttrs);
+        int i = 0;
+        while (i < text.length()) {
+            int cp = text.codePointAt(i);
+            i += Character.charCount(cp);
+
+            int w = cellWidth(cp);
+            if (w == 1) {
+                insertOneCell(cp, currentAttrs);
+            } else {
+                insertWide(cp, currentAttrs);
+            }
         }
     }
 
-    private void insertOneChar(int codePoint, TextAttributes attrs) {
+    private void insertOneCell(int codePoint, TextAttributes attrs) {
         int carryCp = codePoint;
         TextAttributes carryAttrs = attrs;
 
@@ -204,6 +265,22 @@ public final class TerminalBuffer {
             carryCp = overflow.codePoint();
             carryAttrs = overflow.attrs();
         }
+    }
+
+    private void insertWide(int codePoint, TextAttributes attrs) {
+        // If only one cell remains on this line, move to next line start
+        if (cursorCol == width - 1) {
+            cursorCol = 0;
+            cursorRow++;
+            if (cursorRow >= height) {
+                scrollUpOneLine();
+                cursorRow = height - 1;
+            }
+        }
+        if (cursorCol >= width - 1) return;
+
+        insertOneCell(codePoint, attrs);
+        insertOneCell(Cell.CONTINUATION, attrs);
     }
 
     public void fillLine(int row, int codePointOrZero) {

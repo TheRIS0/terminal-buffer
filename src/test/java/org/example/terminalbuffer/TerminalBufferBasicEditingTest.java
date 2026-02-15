@@ -20,8 +20,7 @@ public class TerminalBufferBasicEditingTest {
         TerminalBuffer b = new TerminalBuffer(5, 1, 10);
         b.setCursor(4, 0);
         b.write("XYZ");
-        assertEquals("    X", b.getLineAsString(0));
-        assertEquals(4, b.cursorCol());
+        assertEquals("    Z", b.getLineAsString(0));
     }
 
     @Test

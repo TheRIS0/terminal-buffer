@@ -2,6 +2,7 @@ package org.example.terminalbuffer;
 
 public final class Cell {
     public static final int EMPTY = 0;
+    public static final int CONTINUATION = -1;
 
     private int codePoint;
     private TextAttributes attrs;

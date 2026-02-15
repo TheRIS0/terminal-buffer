@@ -38,7 +38,11 @@ public final class Line {
         StringBuilder sb = new StringBuilder(cells.length);
         for (Cell c : cells) {
             int cp = c.codePoint();
-            sb.append(cp == Cell.EMPTY ? ' ' : (char) cp);
+            if (cp <= 0) {
+                sb.append(' ');
+            } else {
+                sb.appendCodePoint(cp);
+            }
         }
         return sb.toString();
     }
