@@ -160,6 +160,52 @@ public final class TerminalBuffer {
         cursorCol = clamp(col, 0, width - 1);
     }
 
+    public void insert(String text) {
+        if (text == null || text.isEmpty()) return;
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            insertOneChar(ch, currentAttrs);
+        }
+    }
+
+    private void insertOneChar(int codePoint, TextAttributes attrs) {
+        int carryCp = codePoint;
+        TextAttributes carryAttrs = attrs;
+
+        while (true) {
+            Line line = screen[cursorRow];
+
+            Cell overflow = line.cell(width - 1).copy();
+
+            for (int col = width - 1; col > cursorCol; col--) {
+                Cell from = line.cell(col - 1);
+                line.cell(col).set(from.codePoint(), from.attrs());
+            }
+
+            line.cell(cursorCol).set(carryCp, carryAttrs);
+
+            cursorCol++;
+
+            if (cursorCol >= width) {
+                cursorCol = 0;
+                cursorRow++;
+
+                if (cursorRow >= height) {
+                    scrollUpOneLine();
+                    cursorRow = height - 1;
+                }
+            }
+
+            if (overflow.codePoint() == Cell.EMPTY) {
+                return;
+            }
+
+            carryCp = overflow.codePoint();
+            carryAttrs = overflow.attrs();
+        }
+    }
+
     public void fillLine(int row, int codePointOrZero) {
         if (row < 0 || row >= height) throw new IllegalArgumentException("row out of bounds: " + row);
         Line line = screen[row];
