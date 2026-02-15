@@ -39,6 +39,7 @@ Trade-offs:
 - Overwrites cells starting at the current cursor position.
 - Cursor moves forward as text is written.
 - For plain (1-cell) characters, writing stops at the end of the line.
+- Wide characters may wrap to the next line if there is insufficient space.
 
 Trade-off:
 - This task focuses on the buffer itself, not on full terminal control sequences (CR/LF, tabs, etc.).

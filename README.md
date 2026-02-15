@@ -59,6 +59,9 @@ Current attributes are applied to subsequent edits.
 Operations that use current cursor position and attributes:
 
 * write(text) — overwrite from cursor on the current line, moving the cursor
+
+For wide characters, if there is only one cell left on the line, the write wraps to the next line.
+
 * insert(text) — insert with shifting; may wrap to the next line; may scroll, moving the cursor
 * fillLine(row, codePointOrZero) — fill a screen line with a character (or empty)
 
@@ -94,6 +97,7 @@ Some characters (emoji/CJK) are treated as width=2:
 * The second cell stores a special continuation marker cell
 
 Rendering treats continuation cells as spaces.
+The glyph itself is rendered once (from the first cell); the continuation cell is rendered as space.
 
 ## Notes
 
