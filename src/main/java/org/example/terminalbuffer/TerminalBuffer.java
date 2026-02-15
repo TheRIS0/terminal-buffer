@@ -126,6 +126,14 @@ public final class TerminalBuffer {
         }
     }
 
+    private void scrollUpOneLine() {
+        pushToScrollback(screen[0].deepCopy());
+        for (int i = 0; i < height - 1; i++) {
+            screen[i] = screen[i + 1];
+        }
+        screen[height - 1] = new Line(width);
+    }
+
     private static int clamp(int v, int min, int max) {
         if (v < min) return min;
         if (v > max) return max;
@@ -189,7 +197,23 @@ public final class TerminalBuffer {
         return sb.toString();
     }
 
+    public String getAllAsString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < scrollbackSize; i++) {
+            sb.append(getLineByGlobalRow(i).toPlainString()).append('\n');
+        }
+        for (int i = 0; i < height; i++) {
+            sb.append(screen[i].toPlainString());
+            if (i != height - 1) sb.append('\n');
+        }
+        return sb.toString();
+    }
+
     private Line getLineByGlobalRow(int globalRow) {
+        if (globalRow < scrollbackSize) {
+            int idx = (scrollbackStart + globalRow) % scrollbackStore.length;
+            return scrollbackStore[idx];
+        }
         int screenRow = globalRow - scrollbackSize;
         return screen[screenRow];
     }
@@ -203,6 +227,26 @@ public final class TerminalBuffer {
     private void checkCol(int col) {
         if (col < 0 || col >= width) {
             throw new IllegalArgumentException("col out of bounds: " + col);
+        }
+    }
+
+    public void insertEmptyLineAtBottom() {
+        scrollUpOneLine();
+    }
+
+    public void clearScreen() {
+        for (int i = 0; i < height; i++) {
+            screen[i] = new Line(width);
+        }
+        setCursor(0, 0);
+    }
+
+    public void clearAll() {
+        clearScreen();
+        scrollbackStart = 0;
+        scrollbackSize = 0;
+        for (int i = 0; i < scrollbackStore.length; i++) {
+            scrollbackStore[i] = null;
         }
     }
 }
