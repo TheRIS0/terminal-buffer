@@ -1,3 +1,4 @@
+[![CI](https://github.com/TheRIS0/terminal-buffer/actions/workflows/ci.yml/badge.svg)](https://github.com/TheRIS0/terminal-buffer/actions/workflows/ci.yml)
 # Terminal Buffer (Test Task)
 
 A minimal terminal text buffer implementation in **Java**.
