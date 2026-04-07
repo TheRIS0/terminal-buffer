@@ -18,6 +18,8 @@ jobs:
 
       - uses: gradle/wrapper-validation-action@v2
 
+      - run: chmod +x ./gradlew
+
       - name: Run tests
         run: ./gradlew test
 
