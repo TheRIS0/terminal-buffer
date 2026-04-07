@@ -3,10 +3,12 @@
 A minimal terminal text buffer implementation in **Java**.
 
 The buffer models a terminal as:
+
 - **Screen**: a fixed-size editable grid (width × height)
 - **Scrollback**: a fixed-capacity history of lines that scrolled off the top (read-only)
 
 Each cell stores:
+
 - Unicode code point (or empty)
 - Foreground color: default or one of 16 terminal colors
 - Background color: default or one of 16 terminal colors
@@ -41,68 +43,77 @@ Note: some Windows consoles may render emoji as ? depending on font/encoding. Un
 
 ### Setup
 
-* Configurable initial width, height
-* Configurable scrollbackMax (max number of lines)
+- Configurable initial width, height
+- Configurable scrollbackMax (max number of lines)
 
 ### Attributes
 
-* Set/reset current attributes (fg/bg + style flags).
-Current attributes are applied to subsequent edits.
+- Set/reset current attributes (fg/bg + style flags).
+  Current attributes are applied to subsequent edits.
 
 ### Cursor
 
-* Get/set cursor position (col, row)
-* Move cursor up/down/left/right by N cells (clamped to screen bounds)
+- Get/set cursor position (col, row)
+- Move cursor up/down/left/right by N cells (clamped to screen bounds)
 
 ### Editing
 
 Operations that use current cursor position and attributes:
 
-* write(text) — overwrite from cursor on the current line, moving the cursor
+- write(text) — overwrite from cursor on the current line, moving the cursor
 
 For wide characters, if there is only one cell left on the line, the write wraps to the next line.
 
-* insert(text) — insert with shifting; may wrap to the next line; may scroll, moving the cursor
-* fillLine(row, codePointOrZero) — fill a screen line with a character (or empty)
+- insert(text) — insert with shifting; may wrap to the next line; may scroll, moving the cursor
+- fillLine(row, codePointOrZero) — fill a screen line with a character (or empty)
 
 Operations independent of cursor/attributes:
 
-* insertEmptyLineAtBottom() — scroll screen up; pushes the top line into scrollback
-* clearScreen() — clears screen only
-* clearAll() — clears screen and scrollback
+- insertEmptyLineAtBottom() — scroll screen up; pushes the top line into scrollback
+- clearScreen() — clears screen only
+- clearAll() — clears screen and scrollback
 
 ### Content access
 
-* Get code point at position (screen + scrollback)
-* Get attributes at position (screen + scrollback)
-* Get a line as string (screen + scrollback)
-* Get entire screen as string
-* Get screen + scrollback as string
+- Get code point at position (screen + scrollback)
+- Get attributes at position (screen + scrollback)
+- Get a line as string (screen + scrollback)
+- Get entire screen as string
+- Get screen + scrollback as string
 
 ## Bonus features
 
 ### Resize
-```resize(newWidth, newHeight):```
 
-* Width increase: pads to the right with empty cells
-* Width decrease: truncates right side
-* Height increase: adds empty lines at the bottom
-* Height decrease: removed top lines are appended to scrollback
-* Cursor is clamped to new bounds
+`resize(newWidth, newHeight):`
+
+- Width increase: pads to the right with empty cells
+- Width decrease: truncates right side
+- Height increase: adds empty lines at the bottom
+- Height decrease: removed top lines are appended to scrollback
+- Cursor is clamped to new bounds
 
 ### Wide characters (2-cell)
 
 Some characters (emoji/CJK) are treated as width=2:
-* The first cell stores the character code point
-* The second cell stores a special continuation marker cell
+
+- The first cell stores the character code point
+- The second cell stores a special continuation marker cell
 
 Rendering treats continuation cells as spaces.
 The glyph itself is rendered once (from the first cell); the continuation cell is rendered as space.
 
 ## Notes
 
-* Terminal “wcwidth” and grapheme clusters are approximated with a simple heuristic (sufficient for the bonus requirement).
-* More details and trade-offs are described in ```DECISIONS.md```.
+- Terminal “wcwidth” and grapheme clusters are approximated with a simple heuristic (sufficient for the bonus requirement).
+- More details and trade-offs are described in `DECISIONS.md`.
+
+## Performance & CI notes
+
+- Screen scrolling is implemented as an **O(1) ring buffer** (no O(height) array shifting on scroll).
+- `Line` stores cell data using **parallel arrays** (`int[]` for code points and `TextAttributes[]` for attributes) to reduce allocations and GC pressure.
+- `TextAttributes` instances are **interned** to reuse common (fg, bg, style) combinations.
+- GitHub Actions CI runs `./gradlew test` automatically on pull requests and pushes.
 
 ## Test report
 

@@ -1,43 +1,78 @@
 package org.example.terminalbuffer;
 
 public final class Line {
-    private final Cell[] cells;
+    private final int[] codePoints;
+    private final TextAttributes[] attrs;
 
     public Line(int width) {
         if (width <= 0) throw new IllegalArgumentException("width must be > 0");
-        this.cells = new Cell[width];
+        this.codePoints = new int[width];
+        this.attrs = new TextAttributes[width];
+        TextAttributes def = TextAttributes.defaults();
         for (int i = 0; i < width; i++) {
-            cells[i] = Cell.empty();
+            attrs[i] = def;
         }
     }
 
     public int width() {
-        return cells.length;
+        return codePoints.length;
     }
 
-    public Cell cell(int col) {
-        return cells[col];
+    public int codePointAt(int col) {
+        return codePoints[col];
+    }
+
+    public TextAttributes attrsAt(int col) {
+        return attrs[col];
+    }
+
+    public void setCell(int col, int codePoint, TextAttributes a) {
+        codePoints[col] = codePoint;
+        attrs[col] = TextAttributes.intern(a);
+    }
+
+    public final class CellRef {
+        private final int col;
+
+        private CellRef(int col) {
+            this.col = col;
+        }
+
+        public int codePoint() {
+            return codePoints[col];
+        }
+
+        public TextAttributes attrs() {
+            return attrs[col];
+        }
+
+        public void set(int codePoint, TextAttributes a) {
+            setCell(col, codePoint, a);
+        }
+    }
+
+    public CellRef cell(int col) {
+        return new CellRef(col);
     }
 
     public void clear() {
-        for (int i = 0; i < cells.length; i++) {
-            cells[i].set(Cell.EMPTY, TextAttributes.defaults());
+        TextAttributes def = TextAttributes.defaults();
+        for (int i = 0; i < codePoints.length; i++) {
+            codePoints[i] = Cell.EMPTY;
+            attrs[i] = def;
         }
     }
 
     public Line deepCopy() {
-        Line copy = new Line(cells.length);
-        for (int i = 0; i < cells.length; i++) {
-            Cell c = cells[i];
-            copy.cells[i].set(c.codePoint(), c.attrs());
-        }
+        Line copy = new Line(codePoints.length);
+        System.arraycopy(codePoints, 0, copy.codePoints, 0, codePoints.length);
+        System.arraycopy(attrs, 0, copy.attrs, 0, attrs.length);
         return copy;
     }
 
     public String toPlainString() {
-        StringBuilder sb = new StringBuilder(cells.length);
-        for (Cell c : cells) {
-            int cp = c.codePoint();
+        StringBuilder sb = new StringBuilder(codePoints.length);
+        for (int cp : codePoints) {
             if (cp <= 0) {
                 sb.append(' ');
             } else {
@@ -50,11 +85,9 @@ public final class Line {
     public Line resizedTo(int newWidth) {
         if (newWidth <= 0) throw new IllegalArgumentException("newWidth must be > 0");
         Line out = new Line(newWidth);
-        int n = Math.min(this.cells.length, newWidth);
-        for (int i = 0; i < n; i++) {
-            Cell c = this.cells[i];
-            out.cells[i].set(c.codePoint(), c.attrs());
-        }
+        int n = Math.min(codePoints.length, newWidth);
+        System.arraycopy(codePoints, 0, out.codePoints, 0, n);
+        System.arraycopy(attrs, 0, out.attrs, 0, n);
         return out;
     }
 }

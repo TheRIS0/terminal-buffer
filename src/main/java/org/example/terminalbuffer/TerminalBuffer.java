@@ -8,6 +8,7 @@ public final class TerminalBuffer {
     private final int scrollbackMax;
 
     private Line[] screen;
+    private int screenTopIndex;
 
     private final Line[] scrollbackStore;
     private int scrollbackStart;
@@ -31,6 +32,7 @@ public final class TerminalBuffer {
         for (int i = 0; i < height; i++) {
             screen[i] = new Line(width);
         }
+        this.screenTopIndex = 0;
 
         this.scrollbackStore = new Line[scrollbackMaxLines == 0 ? 1 : scrollbackMaxLines];
         this.scrollbackStart = 0;
@@ -61,7 +63,7 @@ public final class TerminalBuffer {
     }
 
     public void setCurrentAttributes(TextAttributes attrs) {
-        this.currentAttrs = Objects.requireNonNull(attrs);
+        this.currentAttrs = TextAttributes.intern(Objects.requireNonNull(attrs));
     }
 
     public void setCurrentAttributes(byte fg, byte bg, boolean bold, boolean italic, boolean underline) {
@@ -69,7 +71,7 @@ public final class TerminalBuffer {
         if (bold) style |= TextAttributes.BOLD;
         if (italic) style |= TextAttributes.ITALIC;
         if (underline) style |= TextAttributes.UNDERLINE;
-        setCurrentAttributes(new TextAttributes(fg, bg, style));
+        this.currentAttrs = TextAttributes.intern(fg, bg, style);
     }
 
     public void resetAttributes() {
@@ -113,6 +115,14 @@ public final class TerminalBuffer {
         return scrollbackSize + height;
     }
 
+    private int physicalScreenIndex(int logicalRow) {
+        return (screenTopIndex + logicalRow) % height;
+    }
+
+    private Line screenLine(int logicalRow) {
+        return screen[physicalScreenIndex(logicalRow)];
+    }
+
     private void pushToScrollback(Line line) {
         if (scrollbackMax == 0) return;
 
@@ -127,11 +137,9 @@ public final class TerminalBuffer {
     }
 
     private void scrollUpOneLine() {
-        pushToScrollback(screen[0].deepCopy());
-        for (int i = 0; i < height - 1; i++) {
-            screen[i] = screen[i + 1];
-        }
-        screen[height - 1] = new Line(width);
+        pushToScrollback(screenLine(0).deepCopy());
+        screenTopIndex = (screenTopIndex + 1) % height;
+        screenLine(height - 1).clear();
     }
 
     private static int clamp(int v, int min, int max) {
@@ -180,8 +188,8 @@ public final class TerminalBuffer {
 
             if (w == 1) {
                 if (cursorCol >= width) break;
-                Line line = screen[cursorRow];
-                line.cell(cursorCol).set(cp, currentAttrs);
+                Line line = screenLine(cursorRow);
+                line.setCell(cursorCol, cp, currentAttrs);
                 cursorCol = clamp(cursorCol + 1, 0, width - 1);
             } else {
                 // need 2 cells
@@ -196,9 +204,9 @@ public final class TerminalBuffer {
                 }
                 if (cursorCol >= width - 1) break;
 
-                Line line = screen[cursorRow];
-                line.cell(cursorCol).set(cp, currentAttrs);
-                line.cell(cursorCol + 1).set(Cell.CONTINUATION, currentAttrs);
+                Line line = screenLine(cursorRow);
+                line.setCell(cursorCol, cp, currentAttrs);
+                line.setCell(cursorCol + 1, Cell.CONTINUATION, currentAttrs);
 
                 cursorCol += 2;
                 if (cursorCol >= width) {
@@ -235,16 +243,16 @@ public final class TerminalBuffer {
         TextAttributes carryAttrs = attrs;
 
         while (true) {
-            Line line = screen[cursorRow];
+            Line line = screenLine(cursorRow);
 
-            Cell overflow = line.cell(width - 1).copy();
+            int overflowCp = line.codePointAt(width - 1);
+            TextAttributes overflowAttrs = line.attrsAt(width - 1);
 
             for (int col = width - 1; col > cursorCol; col--) {
-                Cell from = line.cell(col - 1);
-                line.cell(col).set(from.codePoint(), from.attrs());
+                line.setCell(col, line.codePointAt(col - 1), line.attrsAt(col - 1));
             }
 
-            line.cell(cursorCol).set(carryCp, carryAttrs);
+            line.setCell(cursorCol, carryCp, carryAttrs);
 
             cursorCol++;
 
@@ -258,12 +266,12 @@ public final class TerminalBuffer {
                 }
             }
 
-            if (overflow.codePoint() == Cell.EMPTY) {
+            if (overflowCp == Cell.EMPTY) {
                 return;
             }
 
-            carryCp = overflow.codePoint();
-            carryAttrs = overflow.attrs();
+            carryCp = overflowCp;
+            carryAttrs = overflowAttrs;
         }
     }
 
@@ -285,9 +293,9 @@ public final class TerminalBuffer {
 
     public void fillLine(int row, int codePointOrZero) {
         if (row < 0 || row >= height) throw new IllegalArgumentException("row out of bounds: " + row);
-        Line line = screen[row];
+        Line line = screenLine(row);
         for (int col = 0; col < width; col++) {
-            line.cell(col).set(codePointOrZero, currentAttrs);
+            line.setCell(col, codePointOrZero, currentAttrs);
         }
     }
 
@@ -295,14 +303,14 @@ public final class TerminalBuffer {
         checkGlobalRow(globalRow);
         checkCol(col);
         Line line = getLineByGlobalRow(globalRow);
-        return line.cell(col).codePoint();
+        return line.codePointAt(col);
     }
 
     public TextAttributes getAttributesAt(int globalRow, int col) {
         checkGlobalRow(globalRow);
         checkCol(col);
         Line line = getLineByGlobalRow(globalRow);
-        return line.cell(col).attrs();
+        return line.attrsAt(col);
     }
 
     public String getLineAsString(int globalRow) {
@@ -314,7 +322,7 @@ public final class TerminalBuffer {
     public String getScreenAsString() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < height; i++) {
-            sb.append(screen[i].toPlainString());
+            sb.append(screenLine(i).toPlainString());
             if (i != height - 1) sb.append('\n');
         }
         return sb.toString();
@@ -326,7 +334,7 @@ public final class TerminalBuffer {
             sb.append(getLineByGlobalRow(i).toPlainString()).append('\n');
         }
         for (int i = 0; i < height; i++) {
-            sb.append(screen[i].toPlainString());
+            sb.append(screenLine(i).toPlainString());
             if (i != height - 1) sb.append('\n');
         }
         return sb.toString();
@@ -338,7 +346,7 @@ public final class TerminalBuffer {
             return scrollbackStore[idx];
         }
         int screenRow = globalRow - scrollbackSize;
-        return screen[screenRow];
+        return screenLine(screenRow);
     }
 
     private void checkGlobalRow(int globalRow) {
@@ -359,40 +367,28 @@ public final class TerminalBuffer {
 
         if (newWidth == this.width && newHeight == this.height) return;
 
-        // If height shrinks, move removed top lines to scrollback.
         if (newHeight < this.height) {
             int removed = this.height - newHeight;
             for (int i = 0; i < removed; i++) {
-                pushToScrollback(this.screen[i].deepCopy());
+                pushToScrollback(screenLine(i).deepCopy());
             }
-
-            Line[] newScreen = new Line[newHeight];
-            for (int i = 0; i < newHeight; i++) {
-                newScreen[i] = this.screen[i + removed].resizedTo(newWidth);
-            }
-            this.screen = newScreen;
-        } else if (newHeight > this.height) {
-            Line[] newScreen = new Line[newHeight];
-            for (int i = 0; i < this.height; i++) {
-                newScreen[i] = this.screen[i].resizedTo(newWidth);
-            }
-            for (int i = this.height; i < newHeight; i++) {
-                newScreen[i] = new Line(newWidth);
-            }
-            this.screen = newScreen;
-        } else {
-            // same height, only width change
-            Line[] newScreen = new Line[this.height];
-            for (int i = 0; i < this.height; i++) {
-                newScreen[i] = this.screen[i].resizedTo(newWidth);
-            }
-            this.screen = newScreen;
         }
 
+        Line[] newScreen = new Line[newHeight];
+        int oldLogicalOffset = (newHeight < this.height) ? (this.height - newHeight) : 0;
+        int linesToCopy = Math.min(newHeight, this.height - oldLogicalOffset);
+        for (int i = 0; i < linesToCopy; i++) {
+            newScreen[i] = screenLine(oldLogicalOffset + i).resizedTo(newWidth);
+        }
+        for (int i = linesToCopy; i < newHeight; i++) {
+            newScreen[i] = new Line(newWidth);
+        }
+
+        this.screen = newScreen;
+        this.screenTopIndex = 0;
         this.width = newWidth;
         this.height = newHeight;
 
-        // Clamp cursor
         setCursor(cursorCol, cursorRow);
     }
 
@@ -401,8 +397,9 @@ public final class TerminalBuffer {
     }
 
     public void clearScreen() {
+        screenTopIndex = 0;
         for (int i = 0; i < height; i++) {
-            screen[i] = new Line(width);
+            screen[i].clear();
         }
         setCursor(0, 0);
     }

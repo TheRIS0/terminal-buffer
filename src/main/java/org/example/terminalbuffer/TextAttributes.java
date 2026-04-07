@@ -1,5 +1,7 @@
 package org.example.terminalbuffer;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public final class TextAttributes {
@@ -8,6 +10,8 @@ public final class TextAttributes {
     public static final int BOLD = 1;
     public static final int ITALIC = 2;
     public static final int UNDERLINE = 4;
+
+    private static final Map<Long, TextAttributes> INTERN = new HashMap<>();
 
     private final byte fg;
     private final byte bg;
@@ -21,8 +25,30 @@ public final class TextAttributes {
         this.styleMask = styleMask;
     }
 
+    private static long pack(byte fg, byte bg, int styleMask) {
+        return (fg & 0xFFL) | ((bg & 0xFFL) << 8) | ((long) styleMask << 16);
+    }
+
+    public static TextAttributes intern(byte fg, byte bg, int styleMask) {
+        validateColor(fg);
+        validateColor(bg);
+        long key = pack(fg, bg, styleMask);
+        TextAttributes existing = INTERN.get(key);
+        if (existing != null) {
+            return existing;
+        }
+        TextAttributes nu = new TextAttributes(fg, bg, styleMask);
+        INTERN.put(key, nu);
+        return nu;
+    }
+
+    public static TextAttributes intern(TextAttributes a) {
+        Objects.requireNonNull(a);
+        return intern(a.fg, a.bg, a.styleMask);
+    }
+
     public static TextAttributes defaults() {
-        return new TextAttributes(DEFAULT_COLOR, DEFAULT_COLOR, 0);
+        return intern(DEFAULT_COLOR, DEFAULT_COLOR, 0);
     }
 
     public byte fg() {
